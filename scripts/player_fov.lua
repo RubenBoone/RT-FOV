@@ -1,37 +1,55 @@
 local FOV = {}
 
-function FOV.Patch(minValue, maxValue)
-    local patched = false
+local patched = false
 
-    local function PatchPlayerFOV()
-        if patched then
-            return true
-        end
+local function PatchSettings(minValue, maxValue)
+    if patched then
+        return true
+    end
 
-        local configs = FindAllOf("SBZSettingsMenuConfig")
+    local configs = FindAllOf("SBZSettingsMenuConfig")
 
-        if not configs or #configs == 0 then
-            return false
-        end
+    if not configs then
+        return false
+    end
 
-        for _, config in ipairs(configs) do
-            if config and config:IsValid() then
-                config.SettingsCategories:ForEach(function(_, categoryParam)
+    for _, config in ipairs(configs) do
+        if config and config:IsValid() then
+            config.SettingsCategories:ForEach(
+                function(_, categoryParam)
                     local category = categoryParam:get()
 
-                    if category.CategoryName:ToString() == "Video" then
-                        category.SettingsGroups:ForEach(function(_, groupParam)
+                    if not category
+                        or category.CategoryName:ToString() ~= "Video"
+                    then
+                        return
+                    end
+
+                    category.SettingsGroups:ForEach(
+                        function(_, groupParam)
                             local group = groupParam:get()
 
-                            if group.GroupName:ToString() == "Camera" then
-                                group.Settings:ForEach(function(_, settingParam)
+                            if not group
+                                or group.GroupName:ToString() ~= "Camera"
+                            then
+                                return
+                            end
+
+                            group.Settings:ForEach(
+                                function(_, settingParam)
                                     local setting = settingParam:get()
 
-                                    if setting.SettingName:ToString() == "Field Of View" then
+                                    if setting
+                                        and setting.SettingName:ToString()
+                                        == "Field Of View"
+                                    then
                                         setting.FloatMinValue = minValue
                                         setting.FloatMaxValue = maxValue
+                                        setting.FloatIncrementValue = 1.0
 
                                         settingParam:set(setting)
+
+                                        patched = true
 
                                         print(
                                             "[RTFOV] FOV patched: "
@@ -40,24 +58,35 @@ function FOV.Patch(minValue, maxValue)
                                             .. tostring(maxValue)
                                         )
 
-                                        patched = true
+                                        return true
                                     end
-                                end)
-                            end
-                        end)
-                    end
-                end)
+                                end
+                            )
+                        end
+                    )
+                end
+            )
+
+            if patched then
+                return true
             end
         end
-
-        return patched
     end
 
-    if not PatchPlayerFOV() then
-        LoopAsync(250, function()
-            return PatchPlayerFOV()
-        end)
+    return false
+end
+
+function FOV.Patch(minValue, maxValue)
+    if PatchSettings(minValue, maxValue) then
+        return
     end
+
+    LoopAsync(
+        250,
+        function()
+            return PatchSettings(minValue, maxValue)
+        end
+    )
 end
 
 return FOV

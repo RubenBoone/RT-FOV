@@ -1,8 +1,10 @@
 print("[RTFOV] Loaded")
 
-local player_fov = require("player_fov")
-local weapon_fov = require("weapon_fov")
+local FOV = require("player_fov")
+local WeaponFOV = require("weapon_fov")
+local WeaponFOVUI = require("weapon_fov_ui")
 
-player_fov.Patch(20.0, 170.0)
+FOV.Patch(20.0, 170.0)
 
-weapon_fov.Init()
+WeaponFOV.Init()
+WeaponFOVUI.Init()
