@@ -609,7 +609,6 @@ local function RegisterFocusHook()
                     weaponSliderFocused =
                         focused == true
 
-                    )
                 end
             )
         end)
