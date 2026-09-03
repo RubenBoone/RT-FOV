@@ -18,6 +18,10 @@ local STEP = 1.0
 local WORLD_MIN = 20.0
 local WORLD_MAX = 170.0
 
+-- Temporary marker used to identify our cloned FOV row.
+local WEAPON_MARKER_INCREMENT =
+    0.123456
+
 ------------------------------------------------------------
 -- HOOK PATHS
 ------------------------------------------------------------
@@ -32,16 +36,23 @@ local SETTINGS_HOOK =
 -- STATE
 ------------------------------------------------------------
 
-local cameraSettingsPatched = false
+local cameraSettingsPatched =
+    false
 
-local settingsHookRegistered = false
+local settingsHookRegistered =
+    false
 
-local weaponSliderWidget = nil
+local conversionRetryRunning =
+    false
+
+local weaponSliderWidget =
+    nil
 
 local lastSliderValue =
     WeaponFOV.Get()
 
-local conversionRetryRunning = false
+local umgFailurePrinted =
+    false
 
 ------------------------------------------------------------
 -- HELPERS
@@ -63,6 +74,42 @@ local function RoundToStep(value)
     ) * STEP
 end
 
+local function IsUsableWidget(widget)
+    if not widget then
+        return false
+    end
+
+    local ok, valid =
+        pcall(function()
+            return widget:IsValid()
+        end)
+
+    return ok
+        and valid == true
+end
+
+local function GetSettingName(widget)
+    if not widget then
+        return nil
+    end
+
+    local ok, name =
+        pcall(function()
+            if not widget.SettingName then
+                return nil
+            end
+
+            return widget.SettingName:
+                ToString()
+        end)
+
+    if not ok then
+        return nil
+    end
+
+    return name
+end
+
 local function SetValueText(
     widget,
     value
@@ -71,7 +118,8 @@ local function SetValueText(
         return
     end
 
-    local textWidget = nil
+    local textWidget =
+        nil
 
     local ok =
         pcall(function()
@@ -117,50 +165,32 @@ local function SetWeaponSliderValue(
     local widget =
         weaponSliderWidget
 
-    if widget then
-        local validOk, valid =
-            pcall(function()
-                return widget:IsValid()
-            end)
-
-        if validOk
-            and valid
-        then
-            pcall(function()
-                widget.SliderValue =
-                    value
-            end)
-
-            local slider = nil
-
-            pcall(function()
-                slider =
-                    widget.Slider_Value
-            end)
-
-            if slider then
-                local sliderValidOk,
-                sliderValid =
-                    pcall(function()
-                        return slider:IsValid()
-                    end)
-
-                if sliderValidOk
-                    and sliderValid
-                then
-                    pcall(function()
-                        slider:SetValue(
-                            value
-                        )
-                    end)
-                end
-            end
-
-            SetValueText(
-                widget,
+    if IsUsableWidget(widget) then
+        pcall(function()
+            widget.SliderValue =
                 value
-            )
+        end)
+
+        local slider =
+            nil
+
+        pcall(function()
+            slider =
+                widget.Slider_Value
+        end)
+
+        if IsUsableWidget(slider) then
+            pcall(function()
+                slider:SetValue(
+                    value
+                )
+            end)
         end
+
+        SetValueText(
+            widget,
+            value
+        )
     end
 
     WeaponFOV.Set(
@@ -174,7 +204,8 @@ end
 ------------------------------------------------------------
 
 local function PatchCameraGroup(group)
-    local fovSetting = nil
+    local fovSetting =
+        nil
 
     local iterateOk =
         pcall(function()
@@ -193,7 +224,7 @@ local function PatchCameraGroup(group)
                     local nameOk, name =
                         pcall(function()
                             return setting.SettingName:
-                            ToString()
+                                ToString()
                         end)
 
                     if nameOk
@@ -215,9 +246,8 @@ local function PatchCameraGroup(group)
     end
 
     --------------------------------------------------------
-    -- Both entries must be Field Of View while PAYDAY
-    -- constructs the menu, otherwise the second row is not
-    -- created.
+    -- Both entries must remain Field Of View while PAYDAY
+    -- builds the menu, otherwise the second row is not made.
     --------------------------------------------------------
 
     local assignOk =
@@ -235,7 +265,7 @@ local function PatchCameraGroup(group)
     local countOk, count =
         pcall(function()
             return group.Settings:
-            GetArrayNum()
+                GetArrayNum()
         end)
 
     if not countOk
@@ -245,7 +275,8 @@ local function PatchCameraGroup(group)
         return false
     end
 
-    local index = 0
+    local index =
+        0
 
     local patchOk =
         pcall(function()
@@ -269,9 +300,6 @@ local function PatchCameraGroup(group)
                             "Field Of View"
                         )
 
-                    setting.FloatIncrementValue =
-                        STEP
-
                     ------------------------------------------------
                     -- WORLD FOV
                     ------------------------------------------------
@@ -283,9 +311,13 @@ local function PatchCameraGroup(group)
                         setting.FloatMaxValue =
                             WORLD_MAX
 
-                        ------------------------------------------------
-                        -- WEAPON FOV TEMPLATE
-                        ------------------------------------------------
+                        setting.FloatIncrementValue =
+                            STEP
+
+                    ------------------------------------------------
+                    -- WEAPON FOV TEMPLATE
+                    ------------------------------------------------
+
                     elseif index == 2 then
                         setting.FloatMinValue =
                             MIN_VALUE
@@ -295,6 +327,10 @@ local function PatchCameraGroup(group)
 
                         setting.FloatValue =
                             WeaponFOV.Get()
+
+                        -- Unique marker used after widget creation.
+                        setting.FloatIncrementValue =
+                            WEAPON_MARKER_INCREMENT
                     end
 
                     settingParam:set(
@@ -322,15 +358,7 @@ local function PatchCameraSettings()
     end
 
     for _, config in ipairs(configs) do
-        local validOk, valid =
-            pcall(function()
-                return config
-                    and config:IsValid()
-            end)
-
-        if validOk
-            and valid
-        then
+        if IsUsableWidget(config) then
             local configOk =
                 pcall(function()
                     config.SettingsCategories:
@@ -347,10 +375,10 @@ local function PatchCameraSettings()
                                 end
 
                                 local categoryOk,
-                                categoryName =
+                                    categoryName =
                                     pcall(function()
                                         return category.CategoryName:
-                                        ToString()
+                                            ToString()
                                     end)
 
                                 if not categoryOk
@@ -373,10 +401,10 @@ local function PatchCameraSettings()
                                             end
 
                                             local groupOk,
-                                            groupName =
+                                                groupName =
                                                 pcall(function()
                                                     return group.GroupName:
-                                                    ToString()
+                                                        ToString()
                                                 end)
 
                                             if not groupOk
@@ -419,25 +447,13 @@ end
 -- CONFIGURE WEAPON FOV WIDGET
 ------------------------------------------------------------
 
-local function ConfigureWeaponSlider(
-    child
-)
-    if not child then
+local function ConfigureWeaponSlider(child)
+    if not IsUsableWidget(child) then
         return false
     end
 
-    local childValidOk, childValid =
-        pcall(function()
-            return child:IsValid()
-        end)
-
-    if not childValidOk
-        or not childValid
-    then
-        return false
-    end
-
-    local slider = nil
+    local slider =
+        nil
 
     local sliderOk =
         pcall(function()
@@ -446,35 +462,17 @@ local function ConfigureWeaponSlider(
         end)
 
     if not sliderOk
-        or not slider
+        or not IsUsableWidget(slider)
     then
-        print(
-            "[RTFOV] Configure failed: no Slider_Value"
-        )
-
-        return false
-    end
-
-    local sliderValidOk, sliderValid =
-        pcall(function()
-            return slider:IsValid()
-        end)
-
-    if not sliderValidOk
-        or not sliderValid
-    then
-        print(
-            "[RTFOV] Configure failed: invalid Slider_Value"
-        )
-
         return false
     end
 
     --------------------------------------------------------
-    -- Remove PAYDAY's native world-FOV OnValueChanged.
+    -- Remove PAYDAY's native world-FOV callback.
     --------------------------------------------------------
 
-    local delegate = nil
+    local delegate =
+        nil
 
     local delegateOk =
         pcall(function()
@@ -506,7 +504,7 @@ local function ConfigureWeaponSlider(
     end
 
     --------------------------------------------------------
-    -- Convert row
+    -- Convert native clone into our Weapon FOV row.
     --------------------------------------------------------
 
     local convertOk =
@@ -528,8 +526,7 @@ local function ConfigureWeaponSlider(
                 MAX_VALUE
 
             ------------------------------------------------
-            -- Disable Starbreeze's native keyboard /
-            -- controller setting increment.
+            -- Disable Starbreeze's native setting increment.
             ------------------------------------------------
 
             child.SliderIncrementValue =
@@ -554,38 +551,80 @@ local function ConfigureWeaponSlider(
     end
 
     --------------------------------------------------------
-    -- Actual UMG slider
+    -- Configure actual UMG Slider.
     --------------------------------------------------------
 
-    local umgOk =
+    local minOk, minErr =
         pcall(function()
             slider:SetMinValue(
                 MIN_VALUE
             )
+        end)
 
+    local maxOk, maxErr =
+        pcall(function()
             slider:SetMaxValue(
                 MAX_VALUE
             )
+        end)
 
+    local stepOk, stepErr =
+        pcall(function()
             slider:SetStepSize(
                 STEP
             )
+        end)
 
+    local valueOk, valueErr =
+        pcall(function()
             slider:SetValue(
                 WeaponFOV.Get()
             )
         end)
 
-    if not umgOk then
-        print(
-            "[RTFOV] Configure failed: UMG slider"
-        )
+    if not minOk
+        or not maxOk
+        or not stepOk
+        or not valueOk
+    then
+        if not umgFailurePrinted then
+            if not minOk then
+                print(
+                    "[RTFOV] UMG SetMinValue failed: "
+                    .. tostring(minErr)
+                )
+            end
+
+            if not maxOk then
+                print(
+                    "[RTFOV] UMG SetMaxValue failed: "
+                    .. tostring(maxErr)
+                )
+            end
+
+            if not stepOk then
+                print(
+                    "[RTFOV] UMG SetStepSize failed: "
+                    .. tostring(stepErr)
+                )
+            end
+
+            if not valueOk then
+                print(
+                    "[RTFOV] UMG SetValue failed: "
+                    .. tostring(valueErr)
+                )
+            end
+
+            umgFailurePrinted =
+                true
+        end
 
         return false
     end
 
     --------------------------------------------------------
-    -- Visible name
+    -- Visible name.
     --------------------------------------------------------
 
     pcall(function()
@@ -600,7 +639,7 @@ local function ConfigureWeaponSlider(
     end)
 
     --------------------------------------------------------
-    -- Visible value
+    -- Visible value.
     --------------------------------------------------------
 
     SetValueText(
@@ -609,7 +648,7 @@ local function ConfigureWeaponSlider(
     )
 
     --------------------------------------------------------
-    -- Cache
+    -- Cache active widget.
     --------------------------------------------------------
 
     weaponSliderWidget =
@@ -626,226 +665,111 @@ local function ConfigureWeaponSlider(
 end
 
 ------------------------------------------------------------
--- FIND CURRENT VIDEO SETTINGS SCREEN
+-- IDENTIFY WEAPON FOV CLONE
 ------------------------------------------------------------
 
-local function FindCurrentVideoSettingsScreen()
-    local screens =
-        FindAllOf(
-            "WBP_Settings_Screen_Category_C"
-        )
+local function IsWeaponSliderCandidate(widget)
+    local name =
+        GetSettingName(widget)
 
-    if not screens then
-        return nil
+    --------------------------------------------------------
+    -- Already converted.
+    --------------------------------------------------------
+
+    if name == "Weapon FOV" then
+        return true
     end
 
-    for _, screen in ipairs(screens) do
-        if screen then
-            local validOk, valid =
-                pcall(function()
-                    return screen:IsValid()
-                end)
-
-            if validOk
-                and valid
-            then
-                local categoryOk,
-                categoryName =
-                    pcall(function()
-                        return screen.SettingsCategoryName:
-                        ToString()
-                    end)
-
-                if categoryOk
-                    and categoryName == "Video"
-                then
-                    ------------------------------------------------
-                    -- Do not return a screen whose ScrollBox has
-                    -- already been destroyed.
-                    ------------------------------------------------
-
-                    local scrollBox = nil
-
-                    local scrollOk =
-                        pcall(function()
-                            scrollBox =
-                                screen.ScrollBox_SettingsItems
-
-                            if not scrollBox then
-                                error(
-                                    "null scroll box"
-                                )
-                            end
-
-                            if not scrollBox:IsValid() then
-                                error(
-                                    "invalid scroll box"
-                                )
-                            end
-                        end)
-
-                    if scrollOk
-                        and scrollBox
-                    then
-                        return screen
-                    end
-                end
-            end
-        end
+    if name ~= "Field Of View" then
+        return false
     end
 
-    return nil
+    --------------------------------------------------------
+    -- Primary identification:
+    -- unique temporary increment marker.
+    --------------------------------------------------------
+
+    local markerOk, increment =
+        pcall(function()
+            return tonumber(
+                widget.SliderIncrementValue
+            )
+        end)
+
+    if markerOk
+        and increment
+        and math.abs(
+            increment
+            - WEAPON_MARKER_INCREMENT
+        ) < 0.0001
+    then
+        return true
+    end
+
+    --------------------------------------------------------
+    -- Fallback:
+    -- Weapon FOV has the unique 20-90 range.
+    --------------------------------------------------------
+
+    local rangeOk,
+        minValue,
+        maxValue =
+        pcall(function()
+            return tonumber(
+                    widget.SliderMinValue
+                ),
+                tonumber(
+                    widget.SliderMaxValue
+                )
+        end)
+
+    if not rangeOk
+        or not minValue
+        or not maxValue
+    then
+        return false
+    end
+
+    return math.abs(
+            minValue - MIN_VALUE
+        ) < 0.01
+        and math.abs(
+            maxValue - MAX_VALUE
+        ) < 0.01
 end
 
 ------------------------------------------------------------
--- FIND / CONVERT SECOND FOV ROW
+-- FIND AND CONVERT WEAPON FOV WIDGET
 ------------------------------------------------------------
 
-local function ConvertSecondFOVWidget(
-    screen
-)
-    if not screen then
+local function TryConvertWeaponSlider()
+    local widgets =
+        FindAllOf(
+            "WBP_Settings_SliderButton_C"
+        )
+
+    if not widgets then
         return false
     end
 
-    --------------------------------------------------------
-    -- Validate screen.
-    --------------------------------------------------------
-
-    local screenOk =
-        pcall(function()
-            if not screen:IsValid() then
-                error(
-                    "invalid screen"
-                )
-            end
-
-            if screen.SettingsCategoryName:
-                ToString() ~= "Video"
-            then
-                error(
-                    "not video"
-                )
-            end
-        end)
-
-    if not screenOk then
-        return false
-    end
-
-    --------------------------------------------------------
-    -- Get ScrollBox safely.
-    --------------------------------------------------------
-
-    local scrollBox = nil
-
-    local scrollOk =
-        pcall(function()
-            scrollBox =
-                screen.ScrollBox_SettingsItems
-
-            if not scrollBox then
-                error(
-                    "no scroll box"
-                )
-            end
-
-            if not scrollBox:IsValid() then
-                error(
-                    "invalid scroll box"
-                )
-            end
-        end)
-
-    if not scrollOk
-        or not scrollBox
-    then
-        return false
-    end
-
-    --------------------------------------------------------
-    -- This was the actual crash for the affected user.
-    --------------------------------------------------------
-
-    local count = nil
-
-    local countOk =
-        pcall(function()
-            count =
-                scrollBox:
-                GetChildrenCount()
-        end)
-
-    if not countOk
-        or count == nil
-    then
-        return false
-    end
-
-    local fovCount = 0
-
-    for i = 0, count - 1 do
-        local child = nil
-
-        local childOk =
-            pcall(function()
-                child =
-                    scrollBox:
-                    GetChildAt(i)
-            end)
-
-        if childOk
-            and child
+    for _, widget in ipairs(widgets) do
+        if IsUsableWidget(widget)
+            and IsWeaponSliderCandidate(widget)
         then
-            local validOk, valid =
-                pcall(function()
-                    return child:IsValid()
-                end)
+            local oldName =
+                GetSettingName(widget)
 
-            if validOk
-                and valid
+            if ConfigureWeaponSlider(
+                    widget
+                )
             then
-                local nameOk, name =
-                    pcall(function()
-                        if not child.SettingName then
-                            error(
-                                "no setting name"
-                            )
-                        end
-
-                        return child.SettingName:
-                        ToString()
-                    end)
-
-                if nameOk then
-                    ------------------------------------------------
-                    -- Already converted.
-                    --
-                    -- Reconfigure it anyway. PAYDAY may have
-                    -- rebuilt/native-bound the widget again.
-                    ------------------------------------------------
-
-                    if name == "Weapon FOV" then
-                        return ConfigureWeaponSlider(
-                            child
-                        )
-                    end
-
-                    ------------------------------------------------
-                    -- Find second native FOV row.
-                    ------------------------------------------------
-
-                    if name == "Field Of View" then
-                        fovCount =
-                            fovCount + 1
-
-                        if fovCount == 2 then
-                            return ConfigureWeaponSlider(
-                                child
-                            )
-                        end
-                    end
+                if oldName == "Field Of View" then
+                    print(
+                        "[RTFOV] Weapon FOV row identified"
+                    )
                 end
+
+                return true
             end
         end
     end
@@ -855,12 +779,6 @@ end
 
 ------------------------------------------------------------
 -- CONVERSION RETRY
---
--- IMPORTANT:
--- We deliberately do NOT capture the screen passed to
--- OnInitialized.
---
--- Every retry obtains the current live Video settings screen.
 ------------------------------------------------------------
 
 local function StartConversionRetry()
@@ -871,7 +789,8 @@ local function StartConversionRetry()
     conversionRetryRunning =
         true
 
-    local attempts = 0
+    local attempts =
+        0
 
     LoopAsync(
         100,
@@ -880,38 +799,30 @@ local function StartConversionRetry()
             attempts =
                 attempts + 1
 
-            ------------------------------------------------
-            -- Reacquire it every single attempt.
-            ------------------------------------------------
+            local convertOk,
+                converted =
+                pcall(function()
+                    return TryConvertWeaponSlider()
+                end)
 
-            local screen =
-                FindCurrentVideoSettingsScreen()
-
-            if screen then
-                local convertOk, converted =
-                    pcall(function()
-                        return ConvertSecondFOVWidget(
-                            screen
-                        )
-                    end)
-
-                if convertOk
-                    and converted
-                then
-                    conversionRetryRunning =
-                        false
-
-                    return true
-                end
+            if not convertOk
+                and attempts == 1
+            then
+                print(
+                    "[RTFOV] Weapon FOV conversion retry encountered an error"
+                )
             end
 
-            ------------------------------------------------
-            -- 50 * 100 ms = max 5 seconds.
-            --
-            -- No stale UObject is retained during this time.
-            ------------------------------------------------
+            if convertOk
+                and converted
+            then
+                conversionRetryRunning =
+                    false
 
-            if attempts >= 50 then
+                return true
+            end
+
+            if attempts >= 100 then
                 conversionRetryRunning =
                     false
 
@@ -941,17 +852,15 @@ local function RegisterSettingsHook()
             return true
         end
 
-        local ok, err =
+        local ok =
             pcall(function()
                 RegisterHook(
                     SETTINGS_HOOK,
 
                     function(context)
                         ------------------------------------------------
-                        -- Do NOT retain context:get() here.
-                        --
-                        -- OnInitialized only acts as a signal that
-                        -- some settings screen was created.
+                        -- OnInitialized is only a signal.
+                        -- Do not retain the settings screen UObject.
                         ------------------------------------------------
 
                         ExecuteInGameThread(
@@ -997,7 +906,7 @@ local function RegisterSettingsHook()
 end
 
 ------------------------------------------------------------
--- MOUSE SLIDER WATCHER
+-- SLIDER WATCHER
 ------------------------------------------------------------
 
 local function StartSliderWatcher()
@@ -1008,26 +917,15 @@ local function StartSliderWatcher()
             local widget =
                 weaponSliderWidget
 
-            if not widget then
-                return false
-            end
-
-            local widgetValidOk,
-            widgetValid =
-                pcall(function()
-                    return widget:IsValid()
-                end)
-
-            if not widgetValidOk
-                or not widgetValid
-            then
+            if not IsUsableWidget(widget) then
                 weaponSliderWidget =
                     nil
 
                 return false
             end
 
-            local slider = nil
+            local slider =
+                nil
 
             local sliderOk =
                 pcall(function()
@@ -1036,19 +934,7 @@ local function StartSliderWatcher()
                 end)
 
             if not sliderOk
-                or not slider
-            then
-                return false
-            end
-
-            local sliderValidOk,
-            sliderValid =
-                pcall(function()
-                    return slider:IsValid()
-                end)
-
-            if not sliderValidOk
-                or not sliderValid
+                or not IsUsableWidget(slider)
             then
                 weaponSliderWidget =
                     nil
@@ -1059,7 +945,7 @@ local function StartSliderWatcher()
             local valueOk, value =
                 pcall(function()
                     return slider:
-                    GetValue()
+                        GetValue()
                 end)
 
             if not valueOk

@@ -1,73 +1,149 @@
 local FOV = {}
 
-local patched = false
+------------------------------------------------------------
+-- HELPERS
+------------------------------------------------------------
 
-local function PatchSettings(minValue, maxValue)
-    if patched then
-        return true
+local function IsUsableObject(object)
+    if not object then
+        return false
     end
 
-    local configs = FindAllOf("SBZSettingsMenuConfig")
+    local ok, valid =
+        pcall(function()
+            return object:IsValid()
+        end)
+
+    return ok
+        and valid == true
+end
+
+------------------------------------------------------------
+-- PATCH NATIVE PLAYER FOV SETTING
+------------------------------------------------------------
+
+local function TryPatch(minValue, maxValue)
+    local configs =
+        FindAllOf(
+            "SBZSettingsMenuConfig"
+        )
 
     if not configs then
         return false
     end
 
     for _, config in ipairs(configs) do
-        if config and config:IsValid() then
-            config.SettingsCategories:ForEach(
-                function(_, categoryParam)
-                    local category = categoryParam:get()
+        if IsUsableObject(config) then
+            local patched = false
 
-                    if not category
-                        or category.CategoryName:ToString() ~= "Video"
-                    then
-                        return
-                    end
-
-                    category.SettingsGroups:ForEach(
-                        function(_, groupParam)
-                            local group = groupParam:get()
-
-                            if not group
-                                or group.GroupName:ToString() ~= "Camera"
-                            then
-                                return
-                            end
-
-                            group.Settings:ForEach(
-                                function(_, settingParam)
-                                    local setting = settingParam:get()
-
-                                    if setting
-                                        and setting.SettingName:ToString()
-                                        == "Field Of View"
-                                    then
-                                        setting.FloatMinValue = minValue
-                                        setting.FloatMaxValue = maxValue
-                                        setting.FloatIncrementValue = 1.0
-
-                                        settingParam:set(setting)
-
-                                        patched = true
-
-                                        print(
-                                            "[RTFOV] FOV patched: "
-                                            .. tostring(minValue)
-                                            .. " - "
-                                            .. tostring(maxValue)
-                                        )
-
-                                        return true
-                                    end
-                                end
+            local configOk =
+                pcall(function()
+                    config.SettingsCategories:
+                        ForEach(
+                            function(
+                                _,
+                                categoryParam
                             )
-                        end
-                    )
-                end
-            )
+                                if patched then
+                                    return true
+                                end
 
-            if patched then
+                                local category =
+                                    categoryParam:get()
+
+                                if not category then
+                                    return
+                                end
+
+                                local categoryOk,
+                                    categoryName =
+                                    pcall(function()
+                                        return category.CategoryName:
+                                            ToString()
+                                    end)
+
+                                if not categoryOk
+                                    or categoryName ~= "Video"
+                                then
+                                    return
+                                end
+
+                                category.SettingsGroups:
+                                    ForEach(
+                                        function(
+                                            _,
+                                            groupParam
+                                        )
+                                            if patched then
+                                                return true
+                                            end
+
+                                            local group =
+                                                groupParam:get()
+
+                                            if not group then
+                                                return
+                                            end
+
+                                            group.Settings:
+                                                ForEach(
+                                                    function(
+                                                        _,
+                                                        settingParam
+                                                    )
+                                                        if patched then
+                                                            return true
+                                                        end
+
+                                                        local setting =
+                                                            settingParam:get()
+
+                                                        if not setting then
+                                                            return
+                                                        end
+
+                                                        local nameOk,
+                                                            settingName =
+                                                            pcall(function()
+                                                                return setting.SettingName:
+                                                                    ToString()
+                                                            end)
+
+                                                        if nameOk
+                                                            and settingName == "Field Of View"
+                                                        then
+                                                            setting.FloatMinValue =
+                                                                minValue
+
+                                                            setting.FloatMaxValue =
+                                                                maxValue
+
+                                                            settingParam:set(
+                                                                setting
+                                                            )
+
+                                                            patched = true
+
+                                                            return true
+                                                        end
+                                                    end
+                                                )
+                                        end
+                                    )
+                            end
+                        )
+                end)
+
+            if configOk
+                and patched
+            then
+                print(
+                    "[RTFOV] FOV patched: "
+                    .. tostring(minValue)
+                    .. " - "
+                    .. tostring(maxValue)
+                )
+
                 return true
             end
         end
@@ -76,17 +152,40 @@ local function PatchSettings(minValue, maxValue)
     return false
 end
 
+------------------------------------------------------------
+-- PUBLIC API
+------------------------------------------------------------
+
 function FOV.Patch(minValue, maxValue)
-    if PatchSettings(minValue, maxValue) then
-        return
+    minValue = tonumber(minValue)
+    maxValue = tonumber(maxValue)
+
+    if not minValue
+        or not maxValue
+        or minValue >= maxValue
+    then
+        return false
+    end
+
+    if TryPatch(
+            minValue,
+            maxValue
+        )
+    then
+        return true
     end
 
     LoopAsync(
         250,
         function()
-            return PatchSettings(minValue, maxValue)
+            return TryPatch(
+                minValue,
+                maxValue
+            )
         end
     )
+
+    return false
 end
 
 return FOV

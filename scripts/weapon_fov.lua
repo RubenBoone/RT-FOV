@@ -44,7 +44,7 @@ local function GetConfigPath()
 
     local modDir =
         scriptsDir:match(
-            "^(.*)[/\\]Scripts$"
+            "^(.*)[/\\][Ss]cripts$"
         )
 
     if not modDir then
