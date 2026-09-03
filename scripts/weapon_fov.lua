@@ -110,32 +110,22 @@ end
 ------------------------------------------------------------
 
 local function GetPlayer()
-    if cachedPlayer
-        and cachedPlayer:IsValid()
-    then
-        return cachedPlayer
-    end
+    local controllers = FindAllOf("BP_PlayerController_C")
 
-    local players =
-        FindAllOf(
-            "SBZPlayerCharacter"
-        )
+    if controllers then
+        for _, controller in ipairs(controllers) do
+            if controller
+                and controller:IsValid()
+                and controller.AcknowledgedPawn
+                and controller.AcknowledgedPawn:IsValid()
+            then
+                local pawn = controller.AcknowledgedPawn
 
-    if not players then
-        cachedPlayer = nil
-        return nil
-    end
-
-    for _, player in ipairs(players) do
-        if player
-            and player:IsValid()
-        then
-            cachedPlayer = player
-            return player
+                return pawn
+            end
         end
     end
 
-    cachedPlayer = nil
     return nil
 end
 
