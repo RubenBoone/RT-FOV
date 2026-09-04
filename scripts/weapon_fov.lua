@@ -14,6 +14,8 @@ local DEFAULT_VALUE = 55.0
 
 local currentValue = DEFAULT_VALUE
 local cachedPlayer = nil
+local lastPlayerSearch = 0
+local PLAYER_SEARCH_INTERVAL_MS = 1000
 
 ------------------------------------------------------------
 -- HELPERS
@@ -109,7 +111,34 @@ end
 -- PLAYER
 ------------------------------------------------------------
 
-local function GetPlayer()
+local function IsValidPlayer(player)
+    if not player then
+        return false
+    end
+
+    local ok, valid = pcall(function()
+        return player:IsValid()
+    end)
+
+    return ok and valid == true
+end
+
+local function GetPlayer(forceSearch)
+    if IsValidPlayer(cachedPlayer) then
+        return cachedPlayer
+    end
+
+    cachedPlayer = nil
+
+    local now = os.clock() * 1000
+
+    if not forceSearch
+        and now - lastPlayerSearch < PLAYER_SEARCH_INTERVAL_MS
+    then
+        return nil
+    end
+
+    lastPlayerSearch = now
     local controllers = FindAllOf("BP_PlayerController_C")
 
     if controllers then
@@ -121,6 +150,7 @@ local function GetPlayer()
             then
                 local pawn = controller.AcknowledgedPawn
 
+                cachedPlayer = pawn
                 return pawn
             end
         end
@@ -161,7 +191,7 @@ function WeaponFOV.Set(value, save)
 
     currentValue = value
 
-    local player = GetPlayer()
+    local player = GetPlayer(true)
 
     if player then
         player.OnTopBaseFOV =
@@ -181,7 +211,7 @@ end
 
 local function StartWatcher()
     LoopAsync(
-        16,
+        100,
 
         function()
             local player = GetPlayer()

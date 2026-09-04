@@ -47,6 +47,8 @@ local conversionRetryRunning =
 
 local weaponSliderWidget =
     nil
+local sliderWatcherRunning = false
+local StartSliderWatcher
 
 local lastSliderValue =
     WeaponFOV.Get()
@@ -819,6 +821,8 @@ local function StartConversionRetry()
                 conversionRetryRunning =
                     false
 
+                StartSliderWatcher()
+
                 return true
             end
 
@@ -909,9 +913,15 @@ end
 -- SLIDER WATCHER
 ------------------------------------------------------------
 
-local function StartSliderWatcher()
+StartSliderWatcher = function()
+    if sliderWatcherRunning then
+        return
+    end
+
+    sliderWatcherRunning = true
+
     LoopAsync(
-        16,
+        100,
 
         function()
             local widget =
@@ -921,7 +931,9 @@ local function StartSliderWatcher()
                 weaponSliderWidget =
                     nil
 
-                return false
+                sliderWatcherRunning = false
+
+                return true
             end
 
             local slider =
@@ -939,7 +951,9 @@ local function StartSliderWatcher()
                 weaponSliderWidget =
                     nil
 
-                return false
+                sliderWatcherRunning = false
+
+                return true
             end
 
             local valueOk, value =
@@ -994,7 +1008,6 @@ function WeaponFOVUI.Init()
 
     RegisterSettingsHook()
 
-    StartSliderWatcher()
 end
 
 return WeaponFOVUI
